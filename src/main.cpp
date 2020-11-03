@@ -11,12 +11,32 @@
 //
 // --------------------------------------------------------
 
+
+// SETTINGS -------------------------------------------------------------------------
+
+// Sizes
 int grid_cell_size = 15;
 int grid_width = 90;
 int grid_height = 90;
 
+// Colours
+SDL_Color grid_background = {22, 22, 22, 255}; // Barely Black
+SDL_Color grid_line_color = {44, 44, 44, 255}; // Dark grey
+SDL_Color grid_cursor_ghost_color = {44, 44, 44, 255};
+SDL_Color grid_cursor_color = {255, 255, 255, 255}; // White
+
+// ----------------------------------------------------------------------------------
+
+SDL_Window *window;
+SDL_Renderer *renderer;
+
 std::list<SDL_Rect> startNodes;
 std::list<SDL_Rect> playingNodes;
+
+Uint64 NOW = SDL_GetPerformanceCounter();
+Uint64 LAST = 0;
+double deltaTime = 0;
+double timer = 0;
     
 std::list<SDL_Rect> GetNeighbours(SDL_Rect *node) {
     std::list<SDL_Rect> neighbours;
@@ -27,7 +47,7 @@ std::list<SDL_Rect> GetNeighbours(SDL_Rect *node) {
             int checkX = node->x + x;
             int checkY = node->y + y;
 
-            if (checkX >= 0 && checkX <= grid_width && checkY >= 0 && checkY <= grid_height) {
+            if(checkX >= 0 && checkX <= grid_width * grid_cell_size && checkY >= 0 && checkY <= grid_height * grid_cell_size) {
                 SDL_Rect rect = {.x = checkX, .y = checkY, .w = grid_cell_size, .h = grid_cell_size};
                 neighbours.push_back(rect);
             }
@@ -35,6 +55,31 @@ std::list<SDL_Rect> GetNeighbours(SDL_Rect *node) {
     }
     return neighbours;
 }
+
+void GameLoop() {
+    std::list<SDL_Rect>::iterator it;
+    for(it = playingNodes.begin(); it != playingNodes.end(); ++it) {
+        std::list<SDL_Rect> neighbours = GetNeighbours( &(*it) );
+        if(neighbours.size() > 0){
+            for(SDL_Rect neigh : neighbours) {
+                SDL_SetRenderDrawColor(renderer,
+                                    50,
+                                    150,
+                                    50,
+                                    grid_cursor_color.a); 
+                SDL_RenderFillRect(renderer, &neigh);
+            }
+        }
+    }
+    for(SDL_Rect rect : playingNodes) {
+        SDL_SetRenderDrawColor(renderer,
+                            grid_cursor_color.r,
+                            grid_cursor_color.g,
+                            grid_cursor_color.b,
+                            grid_cursor_color.a); 
+        SDL_RenderFillRect(renderer, &rect);
+    }
+} 
 		
 
 int main(int argc, char* args[]) {
@@ -56,19 +101,11 @@ int main(int argc, char* args[]) {
     // mouse cursor.
     SDL_Rect grid_cursor_ghost = {grid_cursor.x, grid_cursor.y, grid_cell_size, grid_cell_size};
 
-    // Colours
-    SDL_Color grid_background = {22, 22, 22, 255}; // Barely Black
-    SDL_Color grid_line_color = {44, 44, 44, 255}; // Dark grey
-    SDL_Color grid_cursor_ghost_color = {44, 44, 44, 255};
-    SDL_Color grid_cursor_color = {255, 255, 255, 255}; // White
-
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Initialize SDL: %s", SDL_GetError());
         return EXIT_FAILURE;
     }
 
-    SDL_Window *window;
-    SDL_Renderer *renderer;
     if (SDL_CreateWindowAndRenderer(window_width, window_height, 0, &window, &renderer) < 0) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
                      "Create window and renderer: %s", SDL_GetError());
@@ -82,6 +119,13 @@ int main(int argc, char* args[]) {
     SDL_bool mouse_hover = SDL_FALSE;
 
     while (!quit) {
+        // TIMER
+        LAST = NOW;
+        NOW = SDL_GetPerformanceCounter();
+        deltaTime = ((NOW - LAST)*1000 / (double)SDL_GetPerformanceFrequency() );
+        timer += deltaTime;
+
+
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
             switch (event.type) {
@@ -170,29 +214,14 @@ int main(int argc, char* args[]) {
 
     // LOOP ------------------------------------------------------------------------------------------
         if(run) {
-            std::list<SDL_Rect>::iterator it;
-            for(it = playingNodes.begin(); it != playingNodes.end(); ++it) {
-                std::list<SDL_Rect> neighbours = GetNeighbours( &(*it) );
-                //printf("%d\n", neighbours.size());
-                for(SDL_Rect neigh : neighbours) {
-                    //printf("%d,%d\n", neigh.x, neigh.y);
-                    //playingNodes.push_back(neigh);
-                }
-            }
-            for(SDL_Rect rect : playingNodes) {
-                SDL_SetRenderDrawColor(renderer, grid_cursor_color.r,
-                                        grid_cursor_color.g,
-                                        grid_cursor_color.b,
-                                        grid_cursor_color.a); 
-                SDL_RenderFillRect(renderer, &rect);
-            }
+            GameLoop();
         }
         else {
             for(SDL_Rect rect : startNodes) {
                 SDL_SetRenderDrawColor(renderer, grid_cursor_color.r,
-                                    grid_cursor_color.g,
-                                    grid_cursor_color.b,
-                                    grid_cursor_color.a); 
+                                       grid_cursor_color.g,
+                                       grid_cursor_color.b,
+                                       grid_cursor_color.a); 
                 SDL_RenderFillRect(renderer, &rect);
             }
         }
