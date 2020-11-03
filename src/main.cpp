@@ -10,16 +10,35 @@
 // https://github.com/catsocks/sdl-grid/blob/master/main.c
 //
 // --------------------------------------------------------
+
+int grid_cell_size = 15;
+int grid_width = 90;
+int grid_height = 90;
+
+std::list<SDL_Rect> startNodes;
+std::list<SDL_Rect> playingNodes;
     
+std::list<SDL_Rect> GetNeighbours(SDL_Rect *node) {
+    std::list<SDL_Rect> neighbours;
+    for (int x = -grid_cell_size; x <= grid_cell_size; x += grid_cell_size) {
+        for (int y = -grid_cell_size; y <= grid_cell_size; y += grid_cell_size) {
+            if(x == 0 && y == 0) continue; // skip self
 
-int main( int argc, char* args[] )
-{
-    int grid_cell_size = 10;
-    int grid_width = 100;
-    int grid_height = 100;
+            int checkX = node->x + x;
+            int checkY = node->y + y;
 
-    std::list<SDL_Rect> startNodes;
-    std::list<SDL_Rect> playingNodes;
+            if (checkX >= 0 && checkX <= grid_width && checkY >= 0 && checkY <= grid_height) {
+                SDL_Rect rect = {.x = checkX, .y = checkY, .w = grid_cell_size, .h = grid_cell_size};
+                neighbours.push_back(rect);
+            }
+        }
+    }
+    return neighbours;
+}
+		
+
+int main(int argc, char* args[]) {
+    bool run = false;
 
     // + 1 so that the last grid lines fit in the screen.
     int window_width = (grid_width * grid_cell_size) + 1;
@@ -44,15 +63,13 @@ int main( int argc, char* args[] )
     SDL_Color grid_cursor_color = {255, 255, 255, 255}; // White
 
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Initialize SDL: %s",
-                     SDL_GetError());
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Initialize SDL: %s", SDL_GetError());
         return EXIT_FAILURE;
     }
 
     SDL_Window *window;
     SDL_Renderer *renderer;
-    if (SDL_CreateWindowAndRenderer(window_width, window_height, 0, &window,
-                                    &renderer) < 0) {
+    if (SDL_CreateWindowAndRenderer(window_width, window_height, 0, &window, &renderer) < 0) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
                      "Create window and renderer: %s", SDL_GetError());
         return EXIT_FAILURE;
@@ -69,6 +86,7 @@ int main( int argc, char* args[] )
         while (SDL_PollEvent(&event)) {
             switch (event.type) {
             case SDL_MOUSEBUTTONDOWN: {
+                run = false;
                 grid_cursor.x = (event.motion.x / grid_cell_size) * grid_cell_size;
                 grid_cursor.y = (event.motion.y / grid_cell_size) * grid_cell_size;
                 std::list<SDL_Rect>::iterator rectFound = std::find_if(std::begin(startNodes), std::end(startNodes),
@@ -101,10 +119,15 @@ int main( int argc, char* args[] )
             case SDL_KEYDOWN:
                 if(event.key.keysym.sym == SDLK_SPACE) {
                     printf("Start Simulation\n");
-                    
+                    playingNodes.clear();
+                    for(SDL_Rect rect : startNodes) {
+                        playingNodes.push_back(rect);
+                    }
+                    run = true;
                 }
                 else if(event.key.keysym.sym == SDLK_ESCAPE) {
                     printf("Stop Simulation\n");
+                    run = false;
                 }
             break;
 
@@ -115,26 +138,28 @@ int main( int argc, char* args[] )
         }
 
         // Draw grid background.
-        SDL_SetRenderDrawColor(renderer, grid_background.r, grid_background.g,
-                               grid_background.b, grid_background.a);
+        SDL_SetRenderDrawColor(renderer, grid_background.r,
+                               grid_background.g,
+                               grid_background.b,
+                               grid_background.a);
         SDL_RenderClear(renderer);
 
         // Draw grid lines.
-        SDL_SetRenderDrawColor(renderer, grid_line_color.r, grid_line_color.g,
-                               grid_line_color.b, grid_line_color.a);
+        SDL_SetRenderDrawColor(renderer, grid_line_color.r,
+                               grid_line_color.g,
+                               grid_line_color.b,
+                               grid_line_color.a);
 
-        for (int x = 0; x < 1 + grid_width * grid_cell_size;
-             x += grid_cell_size) {
+        for(int x = 0; x < 1 + grid_width * grid_cell_size; x += grid_cell_size) {
             SDL_RenderDrawLine(renderer, x, 0, x, window_height);
         }
 
-        for (int y = 0; y < 1 + grid_height * grid_cell_size;
-             y += grid_cell_size) {
+        for(int y = 0; y < 1 + grid_height * grid_cell_size; y += grid_cell_size) {
             SDL_RenderDrawLine(renderer, 0, y, window_width, y);
         }
 
         // Draw grid ghost cursor.
-        if (mouse_active && mouse_hover) {
+        if(mouse_active && mouse_hover) {
             SDL_SetRenderDrawColor(renderer, grid_cursor_ghost_color.r,
                                    grid_cursor_ghost_color.g,
                                    grid_cursor_ghost_color.b,
@@ -142,11 +167,34 @@ int main( int argc, char* args[] )
             SDL_RenderFillRect(renderer, &grid_cursor_ghost);
         }
 
-        for(SDL_Rect rect : startNodes) {
-            SDL_SetRenderDrawColor(renderer, grid_cursor_color.r,
-                                   grid_cursor_color.g, grid_cursor_color.b,
-                                   grid_cursor_color.a); 
-            SDL_RenderFillRect(renderer, &rect);
+
+    // LOOP ------------------------------------------------------------------------------------------
+        if(run) {
+            std::list<SDL_Rect>::iterator it;
+            for(it = playingNodes.begin(); it != playingNodes.end(); ++it) {
+                std::list<SDL_Rect> neighbours = GetNeighbours( &(*it) );
+                //printf("%d\n", neighbours.size());
+                for(SDL_Rect neigh : neighbours) {
+                    //printf("%d,%d\n", neigh.x, neigh.y);
+                    //playingNodes.push_back(neigh);
+                }
+            }
+            for(SDL_Rect rect : playingNodes) {
+                SDL_SetRenderDrawColor(renderer, grid_cursor_color.r,
+                                        grid_cursor_color.g,
+                                        grid_cursor_color.b,
+                                        grid_cursor_color.a); 
+                SDL_RenderFillRect(renderer, &rect);
+            }
+        }
+        else {
+            for(SDL_Rect rect : startNodes) {
+                SDL_SetRenderDrawColor(renderer, grid_cursor_color.r,
+                                    grid_cursor_color.g,
+                                    grid_cursor_color.b,
+                                    grid_cursor_color.a); 
+                SDL_RenderFillRect(renderer, &rect);
+            }
         }
 
         SDL_RenderPresent(renderer);
