@@ -6,18 +6,24 @@
 
 // --------------------------------------------------------
 //
-// Window And Grid System Creation From:
+// Window and grid system creation edited from from:
 // https://github.com/catsocks/sdl-grid/blob/master/main.c
 //
 // --------------------------------------------------------
 
 
+// Controls:
+// Click to select/unselect
+// Space to start simulaytion and pause / unpause when running
+// ESC to stop simulation
+
+
 // SETTINGS -------------------------------------------------------------------------
 
 // Sizes
-int grid_cell_size = 15;
-int grid_width = 90;
-int grid_height = 90;
+int grid_cell_size = 25;
+int grid_width = 70;
+int grid_height = 50;
 
 // Colours
 SDL_Color grid_background = {22, 22, 22, 255}; // Barely Black
@@ -25,30 +31,34 @@ SDL_Color grid_line_color = {44, 44, 44, 255}; // Dark grey
 SDL_Color grid_cursor_ghost_color = {44, 44, 44, 255};
 SDL_Color grid_cursor_color = {255, 255, 255, 255}; // White
 
+// Other
+int runSpeed = 1000; // Draw every second
+
 // ----------------------------------------------------------------------------------
 
 SDL_Window *window;
 SDL_Renderer *renderer;
 
-std::list<SDL_Rect> startNodes;
-std::list<SDL_Rect> playingNodes;
+std::list<SDL_Rect> startCells;
+std::list<SDL_Rect> playingCells;
+
 
 Uint64 NOW = SDL_GetPerformanceCounter();
 Uint64 LAST = 0;
 double deltaTime = 0;
 double timer = 0;
     
-std::list<SDL_Rect> GetNeighbours(SDL_Rect *node) {
+std::list<SDL_Rect> GetNeighbours(SDL_Rect *cell) {
     std::list<SDL_Rect> neighbours;
     for (int x = -grid_cell_size; x <= grid_cell_size; x += grid_cell_size) {
         for (int y = -grid_cell_size; y <= grid_cell_size; y += grid_cell_size) {
             if(x == 0 && y == 0) continue; // skip self
 
-            int checkX = node->x + x;
-            int checkY = node->y + y;
+            int checkX = cell->x + x;
+            int checkY = cell->y + y;
 
             if(checkX >= 0 && checkX <= grid_width * grid_cell_size && checkY >= 0 && checkY <= grid_height * grid_cell_size) {
-                SDL_Rect rect = {.x = checkX, .y = checkY, .w = grid_cell_size, .h = grid_cell_size};
+                SDL_Rect rect = {checkX, checkY, grid_cell_size, grid_cell_size};
                 neighbours.push_back(rect);
             }
         }
@@ -57,33 +67,74 @@ std::list<SDL_Rect> GetNeighbours(SDL_Rect *node) {
 }
 
 void GameLoop() {
-    std::list<SDL_Rect>::iterator it;
-    for(it = playingNodes.begin(); it != playingNodes.end(); ++it) {
-        std::list<SDL_Rect> neighbours = GetNeighbours( &(*it) );
-        if(neighbours.size() > 0){
-            for(SDL_Rect neigh : neighbours) {
-                SDL_SetRenderDrawColor(renderer,
-                                    50,
-                                    150,
-                                    50,
-                                    grid_cursor_color.a); 
-                SDL_RenderFillRect(renderer, &neigh);
+    // Temp list to collect next gen living cells
+    std::list<SDL_Rect> nextGenCells;
+    // Temp list to list the current dead cells near the living ones
+    std::list<SDL_Rect> deadNeighbours; 
+
+    // Go through current living nodes and determine survivors
+    for(SDL_Rect cell : playingCells) {
+        std::list<SDL_Rect> neighbours = GetNeighbours( &cell );
+        int neighAmount = 0;
+        for(SDL_Rect neigh : neighbours) {
+
+            // Find from living neighbours
+            std::list<SDL_Rect>::iterator rectFound = std::find_if(std::begin(playingCells), std::end(playingCells),
+                                                                    [neigh](const SDL_Rect rhs) {
+                                                                        return (neigh.x == rhs.x && neigh.y == rhs.y);
+                                                                    });
+            // If neighbour is living
+            if ( rectFound != playingCells.end() ) {
+                neighAmount++;
+            }
+            else {
+                // Find from dead neighbours
+                std::list<SDL_Rect>::iterator rectFound = std::find_if(std::begin(deadNeighbours), std::end(deadNeighbours),
+                                                                       [neigh] (const SDL_Rect rhs) {
+                                                                           return (neigh.x == rhs.x && neigh.y == rhs.y);
+                                                                       });
+                // If neighbour is not in dead yet
+                if(rectFound == deadNeighbours.end()) {
+                    deadNeighbours.push_back( neigh );
+                }
             }
         }
+        if(neighAmount > 1 && neighAmount < 4) { // Cell survived
+            nextGenCells.push_back(cell);
+        }
     }
-    for(SDL_Rect rect : playingNodes) {
-        SDL_SetRenderDrawColor(renderer,
-                            grid_cursor_color.r,
-                            grid_cursor_color.g,
-                            grid_cursor_color.b,
-                            grid_cursor_color.a); 
-        SDL_RenderFillRect(renderer, &rect);
+
+    // Go through dead neighbours and see if some of them will be alive next gen
+    for(SDL_Rect cell : deadNeighbours) {
+        std::list<SDL_Rect> neighbours = GetNeighbours(&cell);
+        int neighAmount = 0;
+        for(SDL_Rect neigh : neighbours) {
+
+            // Find from living neighbours
+            std::list<SDL_Rect>::iterator rectFound = std::find_if(std::begin(playingCells), std::end(playingCells),
+                                                                   [neigh] (const SDL_Rect rhs) {
+                                                                       return (neigh.x == rhs.x && neigh.y == rhs.y);
+                                                                   });
+            // If neighbour is living
+            if(rectFound != playingCells.end()) {
+                neighAmount++;
+            }
+        }
+        if(neighAmount == 3) { // Cell is born
+            nextGenCells.push_back(cell);
+        }
+    }
+
+    // TempCells replace livingCells
+    playingCells.clear();
+    for(SDL_Rect cell : nextGenCells) {
+        playingCells.push_back(cell);
     }
 } 
-		
 
 int main(int argc, char* args[]) {
     bool run = false;
+    bool pause = false;
 
     // + 1 so that the last grid lines fit in the screen.
     int window_width = (grid_width * grid_cell_size) + 1;
@@ -91,10 +142,10 @@ int main(int argc, char* args[]) {
 
     // Place the grid cursor in the middle of the screen.
     SDL_Rect grid_cursor = {
-        .x = (grid_width - 1) / 2 * grid_cell_size,
-        .y = (grid_height - 1) / 2 * grid_cell_size,
-        .w = grid_cell_size,
-        .h = grid_cell_size,
+        (grid_width - 1) / 2 * grid_cell_size,
+        (grid_height - 1) / 2 * grid_cell_size,
+        grid_cell_size,
+        grid_cell_size,
     };
 
     // The cursor ghost is a cursor that always shows in the cell below the
@@ -119,12 +170,10 @@ int main(int argc, char* args[]) {
     SDL_bool mouse_hover = SDL_FALSE;
 
     while (!quit) {
-        // TIMER
+        // DELTA TIME CALCULATOR
         LAST = NOW;
         NOW = SDL_GetPerformanceCounter();
-        deltaTime = ((NOW - LAST)*1000 / (double)SDL_GetPerformanceFrequency() );
-        timer += deltaTime;
-
+        deltaTime = ((NOW - LAST) * 1000 / (double)SDL_GetPerformanceFrequency());
 
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
@@ -133,15 +182,15 @@ int main(int argc, char* args[]) {
                 run = false;
                 grid_cursor.x = (event.motion.x / grid_cell_size) * grid_cell_size;
                 grid_cursor.y = (event.motion.y / grid_cell_size) * grid_cell_size;
-                std::list<SDL_Rect>::iterator rectFound = std::find_if(std::begin(startNodes), std::end(startNodes),
+                std::list<SDL_Rect>::iterator rectFound = std::find_if(std::begin(startCells), std::end(startCells),
 					[grid_cursor](const SDL_Rect rhs) {
 					return (grid_cursor.x == rhs.x && grid_cursor.y == rhs.y);
 				});
-                if(rectFound == startNodes.end()) {
-                    startNodes.push_back(grid_cursor);
+                if(rectFound == startCells.end()) {
+                    startCells.push_back(grid_cursor);
                 }
                 else {
-                    startNodes.erase(rectFound);
+                    startCells.erase(rectFound);
                 }
             break; }
 
@@ -162,16 +211,28 @@ int main(int argc, char* args[]) {
 
             case SDL_KEYDOWN:
                 if(event.key.keysym.sym == SDLK_SPACE) {
-                    printf("Start Simulation\n");
-                    playingNodes.clear();
-                    for(SDL_Rect rect : startNodes) {
-                        playingNodes.push_back(rect);
+                    if(!run) {
+                        playingCells.clear();
+                        for(SDL_Rect rect : startCells) {
+                            playingCells.push_back(rect);
+                        }
+                        run = true;
                     }
-                    run = true;
+                    else if(!pause) {
+                        pause = true;
+                    }
+                    else {
+                        pause = false;
+                    }
                 }
                 else if(event.key.keysym.sym == SDLK_ESCAPE) {
-                    printf("Stop Simulation\n");
-                    run = false;
+                    if(run) {
+                        run = false;
+                        pause = false;
+                    }
+                    else {
+                        quit = SDL_TRUE;
+                    }
                 }
             break;
 
@@ -211,17 +272,33 @@ int main(int argc, char* args[]) {
             SDL_RenderFillRect(renderer, &grid_cursor_ghost);
         }
 
+        if (run) { // Run simulation            
+            timer += deltaTime;
 
-    // LOOP ------------------------------------------------------------------------------------------
-        if(run) {
-            GameLoop();
+            // DO LOGIC EVERY SECOND
+            if (timer > runSpeed) {
+                if(!pause) {
+                    GameLoop();
+                }
+                timer -= runSpeed;
+            }
+
+            // Draw playingCells
+            for (SDL_Rect rect : playingCells) {
+                SDL_SetRenderDrawColor(renderer,
+                    grid_cursor_color.r,
+                    grid_cursor_color.g,
+                    grid_cursor_color.b,
+                    grid_cursor_color.a);
+                SDL_RenderFillRect(renderer, &rect);
+            }
         }
-        else {
-            for(SDL_Rect rect : startNodes) {
+        else { // Draw only the selected starter cells (Simulation stopped)
+            for (SDL_Rect rect : startCells) {
                 SDL_SetRenderDrawColor(renderer, grid_cursor_color.r,
-                                       grid_cursor_color.g,
-                                       grid_cursor_color.b,
-                                       grid_cursor_color.a); 
+                    grid_cursor_color.g,
+                    grid_cursor_color.b,
+                    grid_cursor_color.a);
                 SDL_RenderFillRect(renderer, &rect);
             }
         }
