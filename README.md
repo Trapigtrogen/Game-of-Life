@@ -1,7 +1,11 @@
 # Game of Life
-
 my take on Conway's Game of Life.
 Window and grid system creation edited from from: https://github.com/catsocks/sdl-grid
+
+# Controls
+Click to select/unselect
+Space to start simulation and pause / unpause when running
+ESC to stop simulation
 
 # Building
 
