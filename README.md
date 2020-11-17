@@ -1,17 +1,11 @@
-# SDL2_template
+# Game of Life
 
-Template for SDL using CMake.
+my take on Conway's Game of Life.
+Window and grid system creation edited from from: https://github.com/catsocks/sdl-grid
 
 # Building
 
 ## Windows
-
-Use CMake-gui 
-
-  * Where is the source code: "path to SDL2_template"
-  * Where to build the binaries: "path to SDL2_template"\build\win32
-
-or type following in the Command Prompt:
 
 ```
 cd <path to SDL2_template>
@@ -26,8 +20,6 @@ cmake ..\..\
 
 
 ## Linux
-
-Type following in the terminal:
 
 ```
 cd <path to SDL2_template>

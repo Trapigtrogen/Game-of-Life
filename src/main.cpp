@@ -14,7 +14,7 @@
 
 // Controls:
 // Click to select/unselect
-// Space to start simulaytion and pause / unpause when running
+// Space to start simulation and pause / unpause when running
 // ESC to stop simulation
 
 
@@ -133,6 +133,8 @@ void GameLoop() {
 } 
 
 int main(int argc, char* args[]) {
+    printf("Controls:\n Click to select / unselect\n Space to start simulation and pause / unpause when running\n ESC to stop simulation");
+
     bool run = false;
     bool pause = false;
 
