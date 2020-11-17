@@ -36,7 +36,3 @@ cmake ..\..\
 make
 
 ```
-
-
-# License
-[MIT License](LICENSE)
