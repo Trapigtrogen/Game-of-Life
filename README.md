@@ -1,5 +1,5 @@
 # Game of Life
-my take on Conway's Game of Life.  
+My take on Conway's Game of Life.  
 Window and grid system creation edited from from: https://github.com/catsocks/sdl-grid
 
 # Controls
@@ -19,8 +19,8 @@ cd build
 md win32
 cd win32
 cmake ..\..\
-
 ```
+Build with your compiler
 
 
 ## Linux
@@ -28,11 +28,10 @@ cmake ..\..\
 ```
 cd <path to SDL2_template>
 
-md build
+mkdir build
 cd build
-md linux
+mkdir linux
 cd linux
 cmake ..\..\
 make
-
 ```
